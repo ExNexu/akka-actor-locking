@@ -1,6 +1,7 @@
 package us.bleibinha.akka.actor.locking
 
 import scala.annotation.tailrec
+import scala.concurrent.duration._
 import scala.concurrent.Future
 
 import akka.actor.ActorRef
@@ -21,8 +22,7 @@ class LockingActorTest extends BaseAkkaTest() {
     "process a LockAwareMessage (with Future result)" in {
       val action = () ⇒ Future { self ! "OK" }
       defaultLockingActor ! LockAwareMessage(1, action)
-      val msg = expectMsgType[String]
-      msg should be("OK")
+      expectMsg("OK")
     }
 
     "process sequential LockAwareMessages" in {
@@ -53,6 +53,14 @@ class LockingActorTest extends BaseAkkaTest() {
       Timespan.isIntersecting(lockObj1Timespans) should be(false)
       val lockObj2Timespans = allTimespans.filter(_.lockObj == 2)
       Timespan.isIntersecting(lockObj2Timespans) should be(false)
+    }
+
+    "release lock after expirationTime" in {
+      val blockingAction = () ⇒ Future { Thread.sleep(30000) }
+      defaultLockingActor ! LockAwareMessage(1, blockingAction, 100 millis)
+      val action = () ⇒ Future { self ! "OK" }
+      defaultLockingActor ! LockAwareMessage(1, action, 100 millis)
+      expectMsg("OK")
     }
 
   }
