@@ -57,9 +57,18 @@ class LockingActorTest extends BaseAkkaTest() {
 
     "release lock after expirationTime" in {
       val blockingAction = () ⇒ Future { Thread.sleep(30000) }
-      defaultLockingActor ! LockAwareMessage(1, blockingAction, 100 millis)
+      defaultLockingActor ! LockAwareMessage(1, blockingAction, 100.millis)
       val action = () ⇒ Future { self ! "OK" }
-      defaultLockingActor ! LockAwareMessage(1, action, 100 millis)
+      defaultLockingActor ! LockAwareMessage(1, action)
+      expectMsg("OK")
+    }
+
+    "release lock after default expiration Time" in {
+      val lockingActorWithDefaultExp = LockingActor(100.millis)(system)
+      val blockingAction = () ⇒ Future { Thread.sleep(30000) }
+      lockingActorWithDefaultExp ! LockAwareMessage(1, blockingAction)
+      val action = () ⇒ Future { self ! "OK" }
+      lockingActorWithDefaultExp ! LockAwareMessage(1, action)
       expectMsg("OK")
     }
 
