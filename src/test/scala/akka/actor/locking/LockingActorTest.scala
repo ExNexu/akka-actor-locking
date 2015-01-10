@@ -25,6 +25,18 @@ class LockingActorTest extends BaseAkkaTest() {
       expectMsg("OK")
     }
 
+    "process LockAwareMessages in the same order as they are coming in" in {
+      val action1 = () ⇒ Future { Thread.sleep(100); self ! "1" }
+      defaultLockingActor ! LockAwareMessage(1, action1)
+      val action2 = () ⇒ Future { Thread.sleep(100); self ! "2" }
+      defaultLockingActor ! LockAwareMessage(1, action2)
+      val action3 = () ⇒ Future { Thread.sleep(100); self ! "3" }
+      defaultLockingActor ! LockAwareMessage(1, action3)
+      expectMsg("1")
+      expectMsg("2")
+      expectMsg("3")
+    }
+
     "process sequential LockAwareMessages" in {
       defaultLockingActor ! timespanLockMessage(1)
       defaultLockingActor ! timespanLockMessage(1)
