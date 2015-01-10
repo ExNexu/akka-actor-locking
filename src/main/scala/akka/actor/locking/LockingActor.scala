@@ -1,6 +1,7 @@
 package us.bleibinha.akka.actor.locking
 
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 
 import akka.actor.Actor
@@ -34,16 +35,16 @@ object LockingActor {
         override val expireLockAfter = Some(expireLockAfterTime)
       }
 
-    def apply(lockObject: Any, actionFunction: Function0[Any])(implicit dI: DummyImplicit): LockAwareMessage =
+    def apply(lockObject: Any, actionFunction: Function0[Any])(implicit ec: ExecutionContext): LockAwareMessage =
       new LockAwareMessage {
         override val lockObj = lockObject
-        override val action = () ⇒ Future.successful(actionFunction.apply)
+        override val action = () ⇒ Future { actionFunction.apply }
       }
 
-    def apply(lockObject: Any, actionFunction: Function0[Any], expireLockAfterTime: FiniteDuration)(implicit dI: DummyImplicit): LockAwareMessage =
+    def apply(lockObject: Any, actionFunction: Function0[Any], expireLockAfterTime: FiniteDuration)(implicit ec: ExecutionContext): LockAwareMessage =
       new LockAwareMessage {
         override val lockObj = lockObject
-        override val action = () ⇒ Future.successful(actionFunction.apply)
+        override val action = () ⇒ Future { actionFunction.apply }
         override val expireLockAfter = Some(expireLockAfterTime)
       }
   }
@@ -86,7 +87,7 @@ trait LockingActor extends Actor {
     case unlockMessage: UnlockMessage ⇒
       val lockObj = unlockMessage.lockObj
       unlock(lockObj)
-      triggerWaitingMessages(lockObj)
+      self ! TriggerWaitingMessages(lockObj)
     case TriggerWaitingMessages(lockObj) ⇒
       triggerWaitingMessages(lockObj)
   }
