@@ -1,5 +1,6 @@
 package us.bleibinha.akka.actor.locking
 
+import scala.collection.immutable.Queue
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -69,7 +70,7 @@ trait LockingActor extends Actor {
 
   private var objsInProcess: Set[Any] = Set()
   private var deadlineByObj: Map[Any, Deadline] = Map()
-  private var waitingMessagesByObj: Map[Any, List[LockAwareMessage]] = Map()
+  private var waitingMessagesByObj: Map[Any, Queue[LockAwareMessage]] = Map()
 
   protected def defaultLockExpiration: Option[FiniteDuration] = None
 
@@ -130,21 +131,21 @@ trait LockingActor extends Actor {
 
   private def triggerWaitingMessages(lockObj: Any) {
     waitingMessagesByObj.get(lockObj) map { waitingMessages ⇒
-      waitingMessages.reverse match {
-        case waitingMessage :: Nil ⇒
+      waitingMessages.dequeueOption match {
+        case Some((waitingMessage, Queue())) ⇒
           waitingMessagesByObj = waitingMessagesByObj - lockObj
           self ! waitingMessage
-        case waitingMessage :: moreWaitingMessages ⇒
-          waitingMessagesByObj = waitingMessagesByObj + (lockObj → moreWaitingMessages.reverse)
+        case Some((waitingMessage, moreWaitingMessages)) ⇒
+          waitingMessagesByObj = waitingMessagesByObj + (lockObj → moreWaitingMessages)
           self ! waitingMessage
-        case Nil ⇒
+        case None ⇒
           waitingMessagesByObj = waitingMessagesByObj - lockObj
       }
     }
   }
 
   private def addToWaitingMessages(lockObj: Any, lockAwareMessage: LockAwareMessage) {
-    val waitingMessagesForObj = lockAwareMessage :: waitingMessagesByObj.get(lockObj).getOrElse(Nil)
+    val waitingMessagesForObj = waitingMessagesByObj.get(lockObj).getOrElse(Queue()).enqueue(lockAwareMessage)
     waitingMessagesByObj = waitingMessagesByObj + (lockObj → waitingMessagesForObj)
   }
 }
