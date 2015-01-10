@@ -72,6 +72,15 @@ class LockingActorTest extends BaseAkkaTest() {
       expectMsg("OK")
     }
 
+    "release lock after expiration Time (and not after default expiration Time)" in {
+      val lockingActorWithDefaultExp = LockingActor(30.seconds)(system)
+      val blockingAction = () ⇒ Future { Thread.sleep(30000) }
+      lockingActorWithDefaultExp ! LockAwareMessage(1, blockingAction, 100.millis)
+      val action = () ⇒ Future { self ! "OK" }
+      lockingActorWithDefaultExp ! LockAwareMessage(1, action)
+      expectMsg("OK")
+    }
+
   }
 
   def timespanLockMessage(lockObj: Any) = {
