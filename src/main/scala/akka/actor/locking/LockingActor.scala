@@ -4,8 +4,17 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 
 import akka.actor.Actor
+import akka.actor.ActorRef
+import akka.actor.ActorSystem
+import akka.actor.Props
 
 object LockingActor {
+
+  def apply()(implicit system: ActorSystem): ActorRef =
+    system.actorOf(Props(new DefaultLockingActor(None)))
+  def apply(defaultExpireLockAfter: FiniteDuration)(implicit system: ActorSystem): ActorRef =
+    system.actorOf(Props(new DefaultLockingActor(Some(defaultExpireLockAfter))))
+
   trait LockAwareMessage {
     def lockObj: Any
     def action: Function0[Future[Any]]
@@ -142,4 +151,8 @@ trait LockingActor extends Actor {
   }
 
   private def now() = System.currentTimeMillis
+}
+
+class DefaultLockingActor(override protected val defaultExpireLockAfter: Option[FiniteDuration]) extends LockingActor {
+  override def receive = lockAwareReceive
 }
