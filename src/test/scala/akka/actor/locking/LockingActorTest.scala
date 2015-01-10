@@ -99,7 +99,10 @@ class LockingActorTest extends BaseAkkaTest() {
     @tailrec
     def isIntersecting(durations: List[Timespan]): Boolean = durations match {
       case duration1 :: rest ⇒
-        val intersecting = rest.filterNot(duration2 ⇒ duration1.time1 >= duration2.time2 || duration1.time2 <= duration2.time1)
+        val intersecting =
+          rest.filterNot(
+            duration2 ⇒ duration1.time1 >= duration2.time2 || duration1.time2 <= duration2.time1
+          )
         if (intersecting.isEmpty) isIntersecting(rest) else true
       case Nil ⇒ false
     }

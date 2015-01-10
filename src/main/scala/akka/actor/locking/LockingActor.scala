@@ -13,13 +13,13 @@ object LockingActor {
 
   def apply()(implicit system: ActorSystem): ActorRef =
     system.actorOf(Props(new DefaultLockingActor(None)))
-  def apply(defaultExpireLockAfter: FiniteDuration)(implicit system: ActorSystem): ActorRef =
-    system.actorOf(Props(new DefaultLockingActor(Some(defaultExpireLockAfter))))
+  def apply(defaultLockExpiration: FiniteDuration)(implicit system: ActorSystem): ActorRef =
+    system.actorOf(Props(new DefaultLockingActor(Some(defaultLockExpiration))))
 
   trait LockAwareMessage {
     def lockObj: Any
     def action: Function0[Future[Any]]
-    def expireLockAfter: Option[FiniteDuration] = None
+    def lockExpiration: Option[FiniteDuration] = None
   }
   object LockAwareMessage {
     def apply(lockObject: Any, actionFunction: Function0[Future[Any]]): LockAwareMessage =
@@ -28,11 +28,11 @@ object LockingActor {
         override val action = actionFunction
       }
 
-    def apply(lockObject: Any, actionFunction: Function0[Future[Any]], expireLockAfterTime: FiniteDuration): LockAwareMessage =
+    def apply(lockObject: Any, actionFunction: Function0[Future[Any]], lockExpirationDuration: FiniteDuration): LockAwareMessage =
       new LockAwareMessage {
         override val lockObj = lockObject
         override val action = actionFunction
-        override val expireLockAfter = Some(expireLockAfterTime)
+        override val lockExpiration = Some(lockExpirationDuration)
       }
 
     def apply(lockObject: Any, actionFunction: Function0[Any])(implicit ec: ExecutionContext): LockAwareMessage =
@@ -41,11 +41,11 @@ object LockingActor {
         override val action = () ⇒ Future { actionFunction.apply }
       }
 
-    def apply(lockObject: Any, actionFunction: Function0[Any], expireLockAfterTime: FiniteDuration)(implicit ec: ExecutionContext): LockAwareMessage =
+    def apply(lockObject: Any, actionFunction: Function0[Any], lockExpirationDuration: FiniteDuration)(implicit ec: ExecutionContext): LockAwareMessage =
       new LockAwareMessage {
         override val lockObj = lockObject
         override val action = () ⇒ Future { actionFunction.apply }
-        override val expireLockAfter = Some(expireLockAfterTime)
+        override val lockExpiration = Some(lockExpirationDuration)
       }
   }
 
@@ -67,20 +67,20 @@ trait LockingActor extends Actor {
   import context.dispatcher
   import context.system
 
-  private var timeByObjInProcess: Map[Any, Long] = Map()
+  private var objsInProcess: Set[Any] = Set()
   private var deadlineByObj: Map[Any, Deadline] = Map()
   private var waitingMessagesByObj: Map[Any, List[LockAwareMessage]] = Map()
 
-  protected def defaultExpireLockAfter: Option[FiniteDuration] = None
+  protected def defaultLockExpiration: Option[FiniteDuration] = None
 
   protected def lockAwareReceive: Receive = {
     case lockAwareMessage: LockAwareMessage ⇒
       val lockObj = lockAwareMessage.lockObj
-      getLockedSince(lockObj) match {
-        case None ⇒
-          process(lockAwareMessage)
-        case Some(_) if isOverdue(lockObj) ⇒
-          process(lockAwareMessage)
+      objsInProcess.contains(lockObj) match {
+        case false ⇒
+          processMessage(lockAwareMessage)
+        case true if isOverdue(lockObj) ⇒
+          processMessage(lockAwareMessage)
         case _ ⇒
           addToWaitingMessages(lockObj, lockAwareMessage)
       }
@@ -98,10 +98,10 @@ trait LockingActor extends Actor {
       case Some(deadline) ⇒ deadline.isOverdue
     }
 
-  private def process(lockAwareMessage: LockAwareMessage) {
+  private def processMessage(lockAwareMessage: LockAwareMessage) {
     val lockObj = lockAwareMessage.lockObj
     val deadline: Option[Deadline] =
-      lockAwareMessage.expireLockAfter.orElse(defaultExpireLockAfter) map (_.fromNow)
+      lockAwareMessage.lockExpiration.orElse(defaultLockExpiration) map (_.fromNow)
     lock(lockObj, deadline)
     val action = lockAwareMessage.action
     val actionFuture = action.apply
@@ -115,11 +115,8 @@ trait LockingActor extends Actor {
       self ! TriggerWaitingMessages(lockObj)
     }
 
-  private def getLockedSince(lockObj: Any): Option[Long] =
-    timeByObjInProcess.get(lockObj)
-
   private def lock(lockObj: Any, deadline: Option[Deadline]) {
-    timeByObjInProcess = timeByObjInProcess + (lockObj → now())
+    objsInProcess = objsInProcess + lockObj
     deadline map { deadline ⇒
       deadlineByObj = deadlineByObj + (lockObj → deadline)
       scheduleTriggerWaitingMessages(lockObj, deadline.timeLeft)
@@ -127,7 +124,7 @@ trait LockingActor extends Actor {
   }
 
   private def unlock(lockObj: Any) {
-    timeByObjInProcess = timeByObjInProcess - lockObj
+    objsInProcess = objsInProcess - lockObj
     deadlineByObj = deadlineByObj - lockObj
   }
 
@@ -150,10 +147,8 @@ trait LockingActor extends Actor {
     val waitingMessagesForObj = lockAwareMessage :: waitingMessagesByObj.get(lockObj).getOrElse(Nil)
     waitingMessagesByObj = waitingMessagesByObj + (lockObj → waitingMessagesForObj)
   }
-
-  private def now() = System.currentTimeMillis
 }
 
-class DefaultLockingActor(override protected val defaultExpireLockAfter: Option[FiniteDuration]) extends LockingActor {
+class DefaultLockingActor(override protected val defaultLockExpiration: Option[FiniteDuration]) extends LockingActor {
   override def receive = lockAwareReceive
 }
