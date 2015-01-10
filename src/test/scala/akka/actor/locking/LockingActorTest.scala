@@ -26,10 +26,10 @@ class LockingActorTest extends BaseAkkaTest() {
     }
 
     "process sequential LockAwareMessages" in {
-      defaultLockingActor ! timespanLockMessage
-      defaultLockingActor ! timespanLockMessage
-      defaultLockingActor ! timespanLockMessage
-      defaultLockingActor ! timespanLockMessage
+      defaultLockingActor ! timespanLockMessage(1)
+      defaultLockingActor ! timespanLockMessage(1)
+      defaultLockingActor ! timespanLockMessage(1)
+      defaultLockingActor ! timespanLockMessage(1)
       val timespan1 = expectMsgType[Timespan]
       val timespan2 = expectMsgType[Timespan]
       val timespan3 = expectMsgType[Timespan]
@@ -38,18 +38,35 @@ class LockingActorTest extends BaseAkkaTest() {
       Timespan.isIntersecting(timespans) should be(false)
     }
 
+    "process sequential LockAwareMessages (two different lock objects)" in {
+      defaultLockingActor ! timespanLockMessage(1)
+      defaultLockingActor ! timespanLockMessage(1)
+      defaultLockingActor ! timespanLockMessage(2)
+      defaultLockingActor ! timespanLockMessage(2)
+      val timespan1 = expectMsgType[Timespan]
+      val timespan2 = expectMsgType[Timespan]
+      val timespan3 = expectMsgType[Timespan]
+      val timespan4 = expectMsgType[Timespan]
+      val allTimespans = List(timespan1, timespan2, timespan3, timespan4)
+      Timespan.isIntersecting(allTimespans) should be(true)
+      val lockObj1Timespans = allTimespans.filter(_.lockObj == 1)
+      Timespan.isIntersecting(lockObj1Timespans) should be(false)
+      val lockObj2Timespans = allTimespans.filter(_.lockObj == 2)
+      Timespan.isIntersecting(lockObj2Timespans) should be(false)
+    }
+
   }
 
-  val timespanLockMessage = {
+  def timespanLockMessage(lockObj: Any) = {
     val timespanLockAction =
       () ⇒
         Future {
           val time1 = nowLong()
           Thread.sleep(500)
           val time2 = nowLong()
-          self ! Timespan(time1, time2)
+          self ! Timespan(lockObj, time1, time2)
         }
-    LockAwareMessage(1, timespanLockAction)
+    LockAwareMessage(lockObj, timespanLockAction)
   }
 
   var defaultLockingActor: ActorRef = _
@@ -60,7 +77,7 @@ class LockingActorTest extends BaseAkkaTest() {
 
   def nowLong() = System.currentTimeMillis
 
-  case class Timespan(time1: Long, time2: Long)
+  case class Timespan(lockObj: Any, time1: Long, time2: Long)
   object Timespan {
     @tailrec
     def isIntersecting(durations: List[Timespan]): Boolean = durations match {
