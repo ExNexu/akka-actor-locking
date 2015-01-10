@@ -83,6 +83,12 @@ class LockingActorTest extends BaseAkkaTest() {
 
   }
 
+  var defaultLockingActor: ActorRef = _
+
+  override def beforeEach {
+    defaultLockingActor = LockingActor()(system)
+  }
+
   def timespanLockMessage(lockObj: Any) = {
     val timespanLockAction =
       () ⇒
@@ -93,12 +99,6 @@ class LockingActorTest extends BaseAkkaTest() {
           self ! Timespan(lockObj, time1, time2)
         }
     LockAwareMessage(lockObj, timespanLockAction)
-  }
-
-  var defaultLockingActor: ActorRef = _
-
-  override def beforeEach {
-    defaultLockingActor = LockingActor()(system)
   }
 
   def nowLong() = System.currentTimeMillis
