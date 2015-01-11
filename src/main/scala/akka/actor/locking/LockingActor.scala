@@ -9,6 +9,7 @@ import akka.actor.Actor
 import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Props
+import akka.pattern.pipe
 
 object LockingActor {
 
@@ -17,10 +18,13 @@ object LockingActor {
   def apply(defaultLockExpiration: FiniteDuration)(implicit system: ActorSystem): ActorRef =
     system.actorOf(Props(new DefaultLockingActor(Some(defaultLockExpiration))))
 
-  trait LockAwareMessage {
+  trait LockAware {
     def lockObj: Any
-    def action: Function0[Future[Any]]
     def lockExpiration: Option[FiniteDuration] = None
+  }
+
+  trait LockAwareMessage extends LockAware {
+    def action: Function0[Future[Any]]
   }
   object LockAwareMessage {
     def apply(lockObject: Any, actionFunction: Function0[Future[Any]])(implicit ec: ExecutionContext, di: DummyImplicit): LockAwareMessage =
@@ -50,16 +54,35 @@ object LockingActor {
       }
   }
 
-  trait UnlockMessage {
+  trait LockAwareRequest extends LockAware {
+    def request: Function1[ActorRef, Future[Any]]
+  }
+  object LockAwareRequest {
+    def apply(lockObject: Any, actionFunction: Function0[Future[Any]])(implicit ec: ExecutionContext): LockAwareRequest =
+      new LockAwareRequest {
+        override val lockObj = lockObject
+        override val request =
+          (requester: ActorRef) ⇒ {
+            val result = Future(actionFunction.apply).flatMap(identity)
+            result pipeTo requester
+            result
+          }
+      }
+  }
+
+  trait Unlock {
     def lockObj: Any
   }
-  object UnlockMessage {
-    def apply(lockObject: Any): UnlockMessage = new UnlockMessage {
+  object Unlock {
+    def apply(lockObject: Any): Unlock = new Unlock {
       override val lockObj = lockObject
     }
   }
 
-  private[LockingActor] case class TriggerWaitingMessages(lockObj: Any)
+  private[LockingActor] case class TriggerWaiting(lockObj: Any)
+  private[LockingActor] case class LockAwareWithRequester(lockAwareRequest: LockAwareRequest, originalRequester: ActorRef) extends LockAware {
+    override def lockObj = lockAwareRequest.lockObj
+  }
 }
 
 trait LockingActor extends Actor {
@@ -70,26 +93,26 @@ trait LockingActor extends Actor {
 
   private var objsInProcess: Set[Any] = Set()
   private var deadlineByObj: Map[Any, Deadline] = Map()
-  private var waitingMessagesByObj: Map[Any, Queue[LockAwareMessage]] = Map()
+  private var waitingByObj: Map[Any, Queue[LockAware]] = Map()
 
   protected def defaultLockExpiration: Option[FiniteDuration] = None
 
   protected def lockAwareReceive: Receive = {
-    case lockAwareMessage: LockAwareMessage ⇒
-      val lockObj = lockAwareMessage.lockObj
+    case lockAware: LockAware ⇒
+      val lockObj = lockAware.lockObj
       objsInProcess.contains(lockObj) match {
         case false ⇒
-          processMessage(lockAwareMessage)
+          processLockAware(lockAware)
         case true if isOverdue(lockObj) ⇒
-          processMessage(lockAwareMessage)
+          processLockAware(lockAware)
         case _ ⇒
-          addToWaitingMessages(lockObj, lockAwareMessage)
+          addToWaiting(lockObj, lockAware, sender())
       }
-    case unlockMessage: UnlockMessage ⇒
-      val lockObj = unlockMessage.lockObj
+    case unlockMsg: Unlock ⇒
+      val lockObj = unlockMsg.lockObj
       unlock(lockObj)
-      self ! TriggerWaitingMessages(lockObj)
-    case TriggerWaitingMessages(lockObj) ⇒
+      self ! TriggerWaiting(lockObj)
+    case TriggerWaiting(lockObj) ⇒
       triggerWaitingMessages(lockObj)
   }
 
@@ -99,30 +122,38 @@ trait LockingActor extends Actor {
       case Some(deadline) ⇒ deadline.isOverdue
     }
 
-  private def processMessage(lockAwareMessage: LockAwareMessage) {
-    val lockObj = lockAwareMessage.lockObj
+  private def processLockAware(lockAware: LockAware) {
+    val lockObj = lockAware.lockObj
     val deadline: Option[Deadline] =
-      lockAwareMessage.lockExpiration.orElse(defaultLockExpiration) map (_.fromNow)
+      lockAware.lockExpiration.orElse(defaultLockExpiration) map (_.fromNow)
     lock(lockObj, deadline)
-    val action = lockAwareMessage.action
-    val actionFuture = action.apply
-    actionFuture onComplete {
-      case _ ⇒ self ! UnlockMessage(lockObj)
+    val resultFuture = lockAware match {
+      case lockAwareMessage: LockAwareMessage ⇒
+        lockAwareMessage.action.apply
+      case lockAwareRequest: LockAwareRequest ⇒
+        val requester = sender()
+        lockAwareRequest.request(requester)
+      case lockAwareWithRequester: LockAwareWithRequester ⇒
+        val requester = lockAwareWithRequester.originalRequester
+        lockAwareWithRequester.lockAwareRequest.request(requester)
+    }
+    resultFuture onComplete {
+      case _ ⇒ self ! Unlock(lockObj)
     }
   }
-
-  private def scheduleTriggerWaitingMessages(lockObj: Any, afterTime: FiniteDuration) =
-    system.scheduler.scheduleOnce(afterTime) {
-      self ! TriggerWaitingMessages(lockObj)
-    }
 
   private def lock(lockObj: Any, deadline: Option[Deadline]) {
     objsInProcess = objsInProcess + lockObj
     deadline map { deadline ⇒
       deadlineByObj = deadlineByObj + (lockObj → deadline)
-      scheduleTriggerWaitingMessages(lockObj, deadline.timeLeft)
+      scheduleTriggerWaiting(lockObj, deadline.timeLeft)
     }
   }
+
+  private def scheduleTriggerWaiting(lockObj: Any, afterTime: FiniteDuration) =
+    system.scheduler.scheduleOnce(afterTime) {
+      self ! TriggerWaiting(lockObj)
+    }
 
   private def unlock(lockObj: Any) {
     objsInProcess = objsInProcess - lockObj
@@ -130,23 +161,28 @@ trait LockingActor extends Actor {
   }
 
   private def triggerWaitingMessages(lockObj: Any) {
-    waitingMessagesByObj.get(lockObj) map { waitingMessages ⇒
+    waitingByObj.get(lockObj) map { waitingMessages ⇒
       waitingMessages.dequeueOption match {
         case Some((waitingMessage, Queue())) ⇒
-          waitingMessagesByObj = waitingMessagesByObj - lockObj
+          waitingByObj = waitingByObj - lockObj
           self ! waitingMessage
         case Some((waitingMessage, moreWaitingMessages)) ⇒
-          waitingMessagesByObj = waitingMessagesByObj + (lockObj → moreWaitingMessages)
+          waitingByObj = waitingByObj + (lockObj → moreWaitingMessages)
           self ! waitingMessage
         case None ⇒
-          waitingMessagesByObj = waitingMessagesByObj - lockObj
+          waitingByObj = waitingByObj - lockObj
       }
     }
   }
 
-  private def addToWaitingMessages(lockObj: Any, lockAwareMessage: LockAwareMessage) {
-    val waitingMessagesForObj = waitingMessagesByObj.get(lockObj).getOrElse(Queue()).enqueue(lockAwareMessage)
-    waitingMessagesByObj = waitingMessagesByObj + (lockObj → waitingMessagesForObj)
+  private def addToWaiting(lockObj: Any, lockAware: LockAware, originalRequester: ActorRef) {
+    val modLockAware = lockAware match {
+      case lockAwareRequest: LockAwareRequest ⇒
+        LockAwareWithRequester(lockAwareRequest, originalRequester)
+      case x ⇒ x
+    }
+    val waitingMessagesForObj = waitingByObj.get(lockObj).getOrElse(Queue()).enqueue(modLockAware)
+    waitingByObj = waitingByObj + (lockObj → waitingMessagesForObj)
   }
 }
 

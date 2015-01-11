@@ -5,11 +5,15 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 
 import akka.actor.ActorRef
+import akka.pattern.ask
+import akka.util.Timeout
 import akka.testkit.TestProbe
 import LockingActor._
 
 class LockingActorTest extends BaseAkkaTest() {
   import system.dispatcher
+
+  implicit val timeout = Timeout(3 seconds)
 
   "DefaultLockingActor" must {
 
@@ -99,6 +103,23 @@ class LockingActorTest extends BaseAkkaTest() {
       val action = () ⇒ Future { self ! "OK" }
       defaultLockingActor ! LockAwareMessage(1, action)
       expectMsg("OK")
+    }
+
+    "respond to ask request" in {
+      val request = () ⇒ Future { "OK" }
+      val result = await(defaultLockingActor.ask(LockAwareRequest(1, request)))
+      result should be("OK")
+    }
+
+    "respond to queued requests" in {
+      val probe1 = TestProbe()
+      val probe2 = TestProbe()
+      val request1 = () ⇒ Future { Thread.sleep(100); "OK1" }
+      val request2 = () ⇒ Future { Thread.sleep(100); "OK2" }
+      probe1.send(defaultLockingActor, LockAwareRequest(1, request1))
+      probe2.send(defaultLockingActor, LockAwareRequest(1, request2))
+      probe1.expectMsg("OK1")
+      probe2.expectMsg("OK2")
     }
 
   }
