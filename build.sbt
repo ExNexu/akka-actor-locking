@@ -16,3 +16,33 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.2.1" % "test"
 )
 
+// publishing:
+
+credentials += Credentials(Path.userHome / ".ivy2" / ".us-bleibinha-snapshots-credentials")
+
+credentials += Credentials(Path.userHome / ".ivy2" / ".us-bleibinha-releases-credentials")
+
+publishMavenStyle := true
+
+publishArtifact in Test := false
+
+publishTo := {
+  val archiva = "http://bleibinha.us/archiva/repository/"
+  if (version.value.trim.endsWith("SNAPSHOT"))
+    Some("snapshots" at archiva + "snapshots")
+  else
+    Some("releases"  at archiva + "releases")
+}
+
+pomExtra :=
+  <scm>
+    <url>https://github.com/ExNexu/akka-actor-locking.git</url>
+    <connection>scm:git:git@github.com:ExNexu/akka-actor-locking.git</connection>
+  </scm>
+  <developers>
+    <developer>
+      <id>exnexu</id>
+      <name>Stefan Bleibinhaus</name>
+      <url>http://bleibinha.us</url>
+    </developer>
+  </developers>
