@@ -23,16 +23,16 @@ object LockingActor {
     def lockExpiration: Option[FiniteDuration] = None
   }
   object LockAwareMessage {
-    def apply(lockObject: Any, actionFunction: Function0[Future[Any]]): LockAwareMessage =
+    def apply(lockObject: Any, actionFunction: Function0[Future[Any]])(implicit ec: ExecutionContext, di: DummyImplicit): LockAwareMessage =
       new LockAwareMessage {
         override val lockObj = lockObject
-        override val action = actionFunction
+        override val action = () ⇒ Future(actionFunction.apply).flatMap(identity)
       }
 
-    def apply(lockObject: Any, actionFunction: Function0[Future[Any]], lockExpirationDuration: FiniteDuration): LockAwareMessage =
+    def apply(lockObject: Any, actionFunction: Function0[Future[Any]], lockExpirationDuration: FiniteDuration)(implicit ec: ExecutionContext, di: DummyImplicit): LockAwareMessage =
       new LockAwareMessage {
         override val lockObj = lockObject
-        override val action = actionFunction
+        override val action = () ⇒ Future(actionFunction.apply).flatMap(identity)
         override val lockExpiration = Some(lockExpirationDuration)
       }
 
