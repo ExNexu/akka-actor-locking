@@ -16,6 +16,18 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.2.1" % "test"
 )
 
+scalacOptions := Seq(
+  "-encoding", "utf8",
+  "-feature",
+  "-unchecked",
+  "-deprecation",
+  "-target:jvm-1.6",
+  "-language:_",
+  "-Ywarn-dead-code",
+  "-Xlog-reflective-calls"
+)
+
+
 // publishing:
 
 credentials += Credentials(Path.userHome / ".ivy2" / ".us-bleibinha-snapshots-credentials")
