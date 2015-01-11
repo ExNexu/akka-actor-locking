@@ -106,8 +106,26 @@ class LockingActorTest extends BaseAkkaTest() {
     }
 
     "respond to ask request" in {
+      val request = () ⇒ "OK"
+      val result = await(defaultLockingActor.ask(LockAwareRequest(1, request)))
+      result should be("OK")
+    }
+
+    "respond to ask request (with expiration Time)" in {
+      val request = () ⇒ "OK"
+      val result = await(defaultLockingActor.ask(LockAwareRequest(1, request, 100.millis)))
+      result should be("OK")
+    }
+
+    "respond to ask request (with Future)" in {
       val request = () ⇒ Future { "OK" }
       val result = await(defaultLockingActor.ask(LockAwareRequest(1, request)))
+      result should be("OK")
+    }
+
+    "respond to ask request (with Future and expiration Time)" in {
+      val request = () ⇒ Future { "OK" }
+      val result = await(defaultLockingActor.ask(LockAwareRequest(1, request, 100.millis)))
       result should be("OK")
     }
 
