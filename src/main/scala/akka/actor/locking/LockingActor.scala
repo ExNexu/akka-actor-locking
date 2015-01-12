@@ -1,126 +1,35 @@
 package us.bleibinha.akka.actor.locking
 
 import scala.collection.immutable.Queue
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
+import scala.concurrent.duration.Deadline
+import scala.concurrent.duration.FiniteDuration
 
 import akka.actor.Actor
 import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Props
-import akka.pattern.pipe
 
-object LockingActor {
+object LockingActor extends LockingActorInterface {
 
   def apply()(implicit system: ActorSystem): ActorRef =
     system.actorOf(Props(new DefaultLockingActor(None)))
   def apply(defaultLockExpiration: FiniteDuration)(implicit system: ActorSystem): ActorRef =
     system.actorOf(Props(new DefaultLockingActor(Some(defaultLockExpiration))))
 
-  sealed trait LockAware {
-    def lockObj: Any
-    def lockExpiration: Option[FiniteDuration] = None
-  }
-
-  trait LockAwareMessage extends LockAware {
-    def action: Function0[Future[Any]]
-  }
-  object LockAwareMessage {
-    def apply(lockObject: Any, actionFunction: Function0[Future[Any]])(implicit ec: ExecutionContext, di: DummyImplicit): LockAwareMessage =
-      new LockAwareMessage {
-        override val lockObj = lockObject
-        override val action = () ⇒ Future(actionFunction.apply).flatMap(identity)
-      }
-
-    def apply(lockObject: Any, actionFunction: Function0[Future[Any]], lockExpirationDuration: FiniteDuration)(implicit ec: ExecutionContext, di: DummyImplicit): LockAwareMessage =
-      new LockAwareMessage {
-        override val lockObj = lockObject
-        override val action = () ⇒ Future(actionFunction.apply).flatMap(identity)
-        override val lockExpiration = Some(lockExpirationDuration)
-      }
-
-    def apply(lockObject: Any, actionFunction: Function0[Any])(implicit ec: ExecutionContext): LockAwareMessage =
-      new LockAwareMessage {
-        override val lockObj = lockObject
-        override val action = () ⇒ Future { actionFunction.apply }
-      }
-
-    def apply(lockObject: Any, actionFunction: Function0[Any], lockExpirationDuration: FiniteDuration)(implicit ec: ExecutionContext): LockAwareMessage =
-      new LockAwareMessage {
-        override val lockObj = lockObject
-        override val action = () ⇒ Future { actionFunction.apply }
-        override val lockExpiration = Some(lockExpirationDuration)
-      }
-  }
-
-  trait LockAwareRequest extends LockAware {
-    def request: Function1[ActorRef, Future[Any]]
-  }
-  object LockAwareRequest {
-    def apply(lockObject: Any, requestFunction: Function0[Future[Any]])(implicit ec: ExecutionContext, di: DummyImplicit): LockAwareRequest =
-      new LockAwareRequest {
-        override val lockObj = lockObject
-        override val request =
-          (requester: ActorRef) ⇒ {
-            val result = Future(requestFunction.apply).flatMap(identity)
-            result pipeTo requester
-            result
-          }
-      }
-
-    def apply(lockObject: Any, requestFunction: Function0[Future[Any]], lockExpirationDuration: FiniteDuration)(implicit ec: ExecutionContext, di: DummyImplicit): LockAwareRequest =
-      new LockAwareRequest {
-        override val lockObj = lockObject
-        override val request =
-          (requester: ActorRef) ⇒ {
-            val result = Future(requestFunction.apply).flatMap(identity)
-            result pipeTo requester
-            result
-          }
-        override val lockExpiration = Some(lockExpirationDuration)
-      }
-
-    def apply(lockObject: Any, requestFunction: Function0[Any])(implicit ec: ExecutionContext): LockAwareRequest =
-      new LockAwareRequest {
-        override val lockObj = lockObject
-        override val request =
-          (requester: ActorRef) ⇒ {
-            val result = Future(requestFunction.apply)
-            result pipeTo requester
-            result
-          }
-      }
-
-    def apply(lockObject: Any, requestFunction: Function0[Any], lockExpirationDuration: FiniteDuration)(implicit ec: ExecutionContext): LockAwareRequest =
-      new LockAwareRequest {
-        override val lockObj = lockObject
-        override val request =
-          (requester: ActorRef) ⇒ {
-            val result = Future(requestFunction.apply)
-            result pipeTo requester
-            result
-          }
-        override val lockExpiration = Some(lockExpirationDuration)
-      }
-  }
-
-  trait Unlock {
-    def lockObj: Any
-  }
-  object Unlock {
-    def apply(lockObject: Any): Unlock = new Unlock {
-      override val lockObj = lockObject
-    }
+  private[LockingActor] class DefaultLockingActor(override protected val defaultLockExpiration: Option[FiniteDuration]) extends LockingActor {
+    override def receive = lockAwareReceive
   }
 
   private[LockingActor] case class TriggerWaiting(lockObj: Any)
-  private[LockingActor] case class LockAwareWithRequester(lockAwareRequest: LockAwareRequest, originalRequester: ActorRef) extends LockAware {
+
+  private[LockingActor] case class LockAwareWithRequester(lockAwareRequest: LockAwareRequest, originalRequester: ActorRef) extends LockAwareRequest {
     override def lockObj = lockAwareRequest.lockObj
+    override def request = lockAwareRequest.request
+    override def lockExpiration = lockAwareRequest.lockExpiration
   }
 }
 
-trait LockingActor extends Actor {
+sealed trait LockingActor extends Actor {
 
   import LockingActor._
   import context.dispatcher
@@ -165,12 +74,12 @@ trait LockingActor extends Actor {
     val resultFuture = lockAware match {
       case lockAwareMessage: LockAwareMessage ⇒
         lockAwareMessage.action.apply
+      case lockAwareWithRequester: LockAwareWithRequester ⇒
+        val requester = lockAwareWithRequester.originalRequester
+        lockAwareWithRequester.request(requester)
       case lockAwareRequest: LockAwareRequest ⇒
         val requester = sender()
         lockAwareRequest.request(requester)
-      case lockAwareWithRequester: LockAwareWithRequester ⇒
-        val requester = lockAwareWithRequester.originalRequester
-        lockAwareWithRequester.lockAwareRequest.request(requester)
     }
     resultFuture onComplete {
       case _ ⇒ self ! Unlock(lockObj)
@@ -219,8 +128,4 @@ trait LockingActor extends Actor {
     val waitingMessagesForObj = waitingByObj.get(lockObj).getOrElse(Queue()).enqueue(modLockAware)
     waitingByObj = waitingByObj + (lockObj → waitingMessagesForObj)
   }
-}
-
-class DefaultLockingActor(override protected val defaultLockExpiration: Option[FiniteDuration]) extends LockingActor {
-  override def receive = lockAwareReceive
 }
