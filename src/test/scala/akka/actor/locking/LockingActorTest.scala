@@ -140,6 +140,15 @@ class LockingActorTest extends BaseAkkaTest() {
       probe2.expectMsg("OK2")
     }
 
+    "release lock after unlock message has been sent" in {
+      val blockingAction = () ⇒ Future { Thread.sleep(30000) }
+      defaultLockingActor ! LockAwareMessage(1, blockingAction)
+      defaultLockingActor ! Unlock(1)
+      val action = () ⇒ Future { self ! "OK" }
+      defaultLockingActor ! LockAwareMessage(1, action)
+      expectMsg("OK")
+    }
+
   }
 
   var defaultLockingActor: ActorRef = _
