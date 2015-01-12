@@ -98,6 +98,14 @@ class LockingActorTest extends BaseAkkaTest() {
     }
 
     "release lock even when action fails" in {
+      val failingAction = () ⇒ { throw new Exception("Oh noes!") }
+      lockingActor ! LockAwareMessage(1, failingAction)
+      val action = () ⇒ Future { self ! "OK" }
+      lockingActor ! LockAwareMessage(1, action)
+      expectMsg("OK")
+    }
+
+    "release lock even when action fails (with Future)" in {
       val failingAction = () ⇒ Future { throw new Exception("Oh noes!") }
       lockingActor ! LockAwareMessage(1, failingAction)
       val action = () ⇒ Future { self ! "OK" }
