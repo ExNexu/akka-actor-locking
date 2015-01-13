@@ -9,29 +9,29 @@ import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Props
 
-object LockingActor extends LockingActorInterface {
+object LockActor extends LockActorInterface {
 
   def apply()(implicit system: ActorSystem): ActorRef =
-    system.actorOf(Props(new DefaultLockingActor(None)))
+    system.actorOf(Props(new DefaultLockActor(None)))
   def apply(defaultLockExpiration: FiniteDuration)(implicit system: ActorSystem): ActorRef =
-    system.actorOf(Props(new DefaultLockingActor(Some(defaultLockExpiration))))
+    system.actorOf(Props(new DefaultLockActor(Some(defaultLockExpiration))))
 
-  private[LockingActor] class DefaultLockingActor(override protected val defaultLockExpiration: Option[FiniteDuration]) extends LockingActor {
+  private[LockActor] class DefaultLockActor(override protected val defaultLockExpiration: Option[FiniteDuration]) extends LockActor {
     override def receive = lockAwareReceive
   }
 
-  private[LockingActor] case class TriggerWaiting(lockObj: Any)
+  private[LockActor] case class TriggerWaiting(lockObj: Any)
 
-  private[LockingActor] case class LockAwareWithRequester(lockAwareRequest: LockAwareRequest, originalRequester: ActorRef) extends LockAwareRequest {
+  private[LockActor] case class LockAwareWithRequester(lockAwareRequest: LockAwareRequest, originalRequester: ActorRef) extends LockAwareRequest {
     override def lockObj = lockAwareRequest.lockObj
     override def request = lockAwareRequest.request
     override def lockExpiration = lockAwareRequest.lockExpiration
   }
 }
 
-sealed trait LockingActor extends Actor {
+sealed trait LockActor extends Actor {
 
-  import LockingActor._
+  import LockActor._
   import context.dispatcher
   import context.system
 

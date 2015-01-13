@@ -10,8 +10,8 @@ Simple example:
 val lockObj = "LOCK" // the lockObj can be of any type
 val action1 = () ⇒ { someCode() } // your code is executed in a future
 val action2 = () ⇒ { someCode() } // the lock is released when your code returns
-lockingActor ! LockAwareMessage(lockObj, action1) // order is guaranteed
-lockingActor ! LockAwareMessage(lockObj, action2) // runs right after action1 :-)
+lockActor ! LockAwareMessage(lockObj, action1) // order is guaranteed
+lockActor ! LockAwareMessage(lockObj, action2) // runs right after action1 :-)
 ```
 
 ## Get started
@@ -26,13 +26,13 @@ libraryDependencies ++= Seq(
 )
 ```
 
-To get the lockingActor:
+To get the lockActor:
 
 ```scala
-import us.bleibinha.akka.actor.locking.LockingActor._ //imports everything needed
+import us.bleibinha.akka.actor.locking.LockActor._ //imports everything needed
 
 implicit val actorSystem = ActorSystem()
-lockingActor = LockingActor()
+lockActor = LockActor()
 ```
 
 ## Features
@@ -43,30 +43,30 @@ val action = () ⇒ {
   someCode()
   Future { someMoreCode() }
 }
-lockingActor ! LockAwareMessage(lockObj, action)
+lockActor ! LockAwareMessage(lockObj, action)
 ```
 * `LockAwareRequest` sends back the result to the requesting actor. This is practical in combination with the [ask pattern](http://doc.akka.io/docs/akka/snapshot/scala/actors.html#Ask__Send-And-Receive-Future). If you are already inside an actor, you can also use a `LockAwareMessage` and `self ! Something` to reply.
 ```scala
 val request = () ⇒ "Hello"
-val result = lockingActor.ask(LockAwareRequest(lockObj, request))
+val result = lockActor.ask(LockAwareRequest(lockObj, request))
 result map println // prints "Hello"
 ```
-* All action code is executed in a `Future` not blocking the lockingActor from other requests. You do not need two lockingActors.
+* All action code is executed in a `Future` not blocking the lockActor from other requests. You do not need two lockActors.
 * The code is non-blocking.
 * Expiration on locks. Expires the lock
-  * in the lockingActor (default timeout for all requests).
+  * in the lockActor (default timeout for all requests).
   ```scala
   import scala.concurrent.duration._
 
-  lockingActor = LockingActor(30 seconds)
+  lockActor = LockActor(30 seconds)
   ```
   * in the message (overwrites default timeout).
   ```scala
-  lockingActor ! LockAwareMessage(lockObj, action, 30 seconds)
+  lockActor ! LockAwareMessage(lockObj, action, 30 seconds)
   ```
 * Manually release a lock.
 ```scala
-lockingActor ! Unlock(lockObj)
+lockActor ! Unlock(lockObj)
 ```
 * Ordered handling of incoming messages.
 * Lock is also released when the action block code throws an exception.

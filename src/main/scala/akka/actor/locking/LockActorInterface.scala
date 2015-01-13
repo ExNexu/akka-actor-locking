@@ -7,7 +7,7 @@ import scala.concurrent.Future
 import akka.actor.ActorRef
 import akka.pattern.pipe
 
-trait LockingActorInterface {
+trait LockActorInterface {
   sealed trait LockAware {
     def lockObj: Any
     def lockExpiration: Option[FiniteDuration]
@@ -58,19 +58,19 @@ trait LockingActorInterface {
     }
   }
 
-  private[LockingActorInterface] case class LockAwareMessageImpl(
+  private[LockActorInterface] case class LockAwareMessageImpl(
     lockObj: Any,
     action: Function0[Future[Any]],
     lockExpiration: Option[FiniteDuration])
     extends LockAwareMessage
 
-  private[LockingActorInterface] case class LockAwareRequestImpl(
+  private[LockActorInterface] case class LockAwareRequestImpl(
     lockObj: Any,
     request: Function1[ActorRef, Future[Any]],
     lockExpiration: Option[FiniteDuration])
     extends LockAwareRequest
 
-  private[LockingActorInterface] object LockAwareRequestImpl {
+  private[LockActorInterface] object LockAwareRequestImpl {
     def requestFromRequestFunction(requestFunction: Function0[Future[Any]])(implicit ec: ExecutionContext, di: DummyImplicit) =
       (requester: ActorRef) ⇒ {
         val result = Future(requestFunction.apply).flatMap(identity)
