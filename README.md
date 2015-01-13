@@ -2,16 +2,21 @@
 
 ## Introduction
 
-**A small Scala [akka](http://akka.io/) library for locking critical sections of code using a binary semaphore without blocking.** The use case is primarily for interacting with external sources (i.e. preventing parallel requests to a website, executing a transaction in a database without transaction support, ...). You should not need to lock code which stays inside your application (Use a single actor instead).
+**A small Scala [akka](http://akka.io/) library for locking critical sections of code using a binary semaphore without blocking.** The use case is primarily for interacting with external sources (i.e. preventing parallel requests to a website, executing a transaction in a database without transaction support, ...). You should not need to lock on code which stays inside your application (Use a single actor instead).
 
 Simple example:
 
 ```scala
-val lockObj = "LOCK" // the lockObj can be of any type
+val lock1 = "LOCK" // the lockObj can be of any type
 val action1 = () ⇒ { someCode() } // your code is executed in a future
-val action2 = () ⇒ { someCode() } // the lock is released when your code returns
-lockActor ! LockAwareMessage(lockObj, action1) // order is guaranteed
-lockActor ! LockAwareMessage(lockObj, action2) // runs right after action1 :-)
+val action2 = () ⇒ { someOtherCode() } // the lock is released when your code returns
+
+val lock2 = 1337
+val action3 = () ⇒ { someReallyOtherCode() }
+
+lockActor ! LockAwareMessage(lock1, action1) // order is guaranteed
+lockActor ! LockAwareMessage(lock1, action2) // runs right after action1 :-)
+lockActor ! LockAwareMessage(lock2, action3) // runs in parallel to action1 & action2
 ```
 
 ## Get started
@@ -26,12 +31,12 @@ libraryDependencies ++= Seq(
 )
 ```
 
-To get the lockActor:
+Get the lockActor:
 
 ```scala
-import us.bleibinha.akka.actor.locking.LockActor._ //imports everything needed
+import us.bleibinha.akka.actor.locking.LockActor._ // imports everything needed
 
-implicit val actorSystem = ActorSystem()
+implicit val actorSystem = ActorSystem() // is an implicit argument to the LockActor
 lockActor = LockActor()
 ```
 
@@ -51,7 +56,7 @@ val request = () ⇒ "Hello"
 val result = lockActor.ask(LockAwareRequest(lockObj, request))
 result map println // prints "Hello"
 ```
-* All action code is executed in a `Future` not blocking the lockActor from other requests. You do not need two lockActors.
+* All action code is executed in a wrapping `Future` not blocking the lockActor from other requests.
 * The code is non-blocking.
 * Expiration on locks. Expires the lock
   * in the lockActor (default timeout for all requests).
@@ -68,8 +73,8 @@ result map println // prints "Hello"
 ```scala
 lockActor ! Unlock(lockObj)
 ```
-* Ordered handling of incoming messages.
-* Lock is also released when the action block code throws an exception.
+* Order of incoming messages to the lockActor is maintained.
+* The lock is released when the action block code throws an exception.
 * Tested. (TODO: Link to tests here)
 
 ## License
