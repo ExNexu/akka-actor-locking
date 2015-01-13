@@ -74,7 +74,8 @@ result map println // prints "Hello"
 lockActor ! Unlock(lockObj)
 ```
 * Order of incoming messages to the lockActor is maintained.
-* The lock is released when the action block code throws an exception.
+* The lock is released when the action code throws an exception.
+* Compiled with *Scala 2.11.5* and *akka 2.3.8*.
 * Tested. (TODO: Link to tests here)
 
 ## License
