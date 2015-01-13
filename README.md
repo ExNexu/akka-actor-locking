@@ -42,7 +42,7 @@ lockActor = LockActor()
 
 ## Features
 
-* Support for action code with a Future return type. The lock will be active until the returned Future completes (**Warning**: Make sure the returned Future 'waits' on all others if you are using multiple Futures in the action block. [Future.sequence](http://www.scala-lang.org/api/current/index.html#scala.concurrent.Future$) might come in handy).
+* Support for action code with a Future return type. The lock will be active until the returned Future completes. **Warning**: Make sure the returned Future 'waits' on all others if you are using multiple Futures in the action block. [Future.sequence](http://www.scala-lang.org/api/current/index.html#scala.concurrent.Future$) might come in handy.
 ```scala
 val action = () ⇒ {
   someCode()
