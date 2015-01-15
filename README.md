@@ -1,8 +1,6 @@
 # akka-actor-locking
 
-## Introduction
-
-**A small Scala [akka](http://akka.io/) library for locking critical sections of code using a binary semaphore without blocking.** The use case is primarily for interacting with external sources (i.e. preventing parallel requests to a website, executing a transaction in a database without transaction support, ...). You should not need to lock on code which stays inside your application (Use a single actor instead).
+**A small Scala [akka](http://akka.io/) library for locking critical sections of code using a binary semaphore without blocking.** The use case is primarily for interacting with external sources (i.e. preventing parallel requests to an external service). You should not need to lock on code which stays inside your application (Use a single actor instead).
 
 Simple example:
 
@@ -34,6 +32,7 @@ libraryDependencies ++= Seq(
 Get the lockActor:
 
 ```scala
+import akka.actor.ActorSystem
 import us.bleibinha.akka.actor.locking._ // imports everything needed
 
 implicit val actorSystem = ActorSystem() // is an implicit argument to the LockActor
@@ -76,7 +75,7 @@ lockActor ! Unlock(lockObj)
 * Order of incoming messages to the lockActor is maintained.
 * The lock is released when the action code throws an exception.
 * Compiled with *Scala 2.11.5* and *akka 2.3.8*.
-* Tested. (TODO: Link to tests here)
+* Tested.
 
 ## License
 
