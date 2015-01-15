@@ -9,7 +9,7 @@ import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Props
 
-object LockActor extends LockActorInterface {
+object LockActor {
 
   def apply()(implicit system: ActorSystem): ActorRef =
     system.actorOf(Props(new DefaultLockActor(None)))

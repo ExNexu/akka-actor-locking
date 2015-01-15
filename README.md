@@ -34,7 +34,7 @@ libraryDependencies ++= Seq(
 Get the lockActor:
 
 ```scala
-import us.bleibinha.akka.actor.locking.LockActor._ // imports everything needed
+import us.bleibinha.akka.actor.locking._ // imports everything needed
 
 implicit val actorSystem = ActorSystem() // is an implicit argument to the LockActor
 lockActor = LockActor()
