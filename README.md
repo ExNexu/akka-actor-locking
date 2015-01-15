@@ -75,7 +75,7 @@ lockActor ! Unlock(lockObj)
 * Order of incoming messages to the lockActor is maintained.
 * The lock is released when the action code throws an exception.
 * Compiled with *Scala 2.11.5* and *akka 2.3.8*.
-* Tested.
+* [Tested](https://github.com/ExNexu/akka-actor-locking/blob/master/src/test/scala/akka/actor/locking/LockActorTest.scala).
 
 ## License
 
