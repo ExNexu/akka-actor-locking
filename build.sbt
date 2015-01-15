@@ -30,6 +30,8 @@ scalacOptions := Seq(
 
 // publishing:
 
+aetherPublishSettings
+
 credentials += Credentials(Path.userHome / ".ivy2" / ".us-bleibinha-snapshots-credentials")
 
 credentials += Credentials(Path.userHome / ".ivy2" / ".us-bleibinha-releases-credentials")
