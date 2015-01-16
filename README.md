@@ -1,5 +1,7 @@
 # akka-actor-locking
 
+[![Build Status](https://travis-ci.org/ExNexu/akka-actor-locking.svg?branch=master)](https://travis-ci.org/ExNexu/akka-actor-locking)
+
 **A small Scala [akka](http://akka.io/) library for locking critical sections of code using a binary semaphore without blocking.** The use case is primarily for interacting with external sources (i.e. preventing parallel requests to an external service). You should not need to lock on code which stays inside your application (Use a single actor instead).
 
 Simple example:
