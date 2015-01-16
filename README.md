@@ -25,7 +25,7 @@ Add this to your `build.sbt`:
 resolvers += "bleibinha.us/archiva releases" at "http://bleibinha.us/archiva/repository/releases"
 
 libraryDependencies ++= Seq(
-  "us.bleibinha" %% "akka-actor-locking" % "0.0.2"
+  "us.bleibinha" %% "akka-actor-locking" % "0.0.3"
 )
 ```
 
@@ -74,7 +74,7 @@ lockActor ! Unlock(lockObj)
 ```
 * Order of incoming messages to the lockActor is maintained.
 * The lock is released when the action code throws an exception.
-* Compiled with *Scala 2.11.5* and *akka 2.3.8*.
+* Built with *Scala 2.11.5* & *Scala 2.10.4* and *akka 2.3.8*.
 * [Tested](https://github.com/ExNexu/akka-actor-locking/blob/master/src/test/scala/akka/actor/locking/LockActorTest.scala).
 
 ## License

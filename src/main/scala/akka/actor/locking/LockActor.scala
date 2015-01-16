@@ -106,14 +106,16 @@ sealed trait LockActor extends Actor {
 
   private def triggerWaitingMessages(lockObj: Any) {
     waitingByObj.get(lockObj) map { waitingMessages ⇒
-      waitingMessages.dequeueOption match {
-        case Some((waitingMessage, Queue())) ⇒
-          waitingByObj = waitingByObj - lockObj
-          self ! waitingMessage
-        case Some((waitingMessage, moreWaitingMessages)) ⇒
+      waitingMessages.length match {
+        case x if x > 1 ⇒
+          val (waitingMessage, moreWaitingMessages) = waitingMessages.dequeue
           waitingByObj = waitingByObj + (lockObj → moreWaitingMessages)
           self ! waitingMessage
-        case None ⇒
+        case 1 ⇒
+          val (waitingMessage, _) = waitingMessages.dequeue
+          waitingByObj = waitingByObj - lockObj
+          self ! waitingMessage
+        case 0 ⇒
           waitingByObj = waitingByObj - lockObj
       }
     }

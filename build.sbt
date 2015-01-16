@@ -6,6 +6,8 @@ version := "0.0.3-SNAPSHOT"
 
 scalaVersion := "2.11.5"
 
+crossScalaVersions := Seq("2.10.4", "2.11.5")
+
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
 
 val akkaVersion = "2.3.8"
