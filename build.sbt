@@ -2,7 +2,7 @@ name := "Akka Actor Locking"
 
 organization := "us.bleibinha"
 
-version := "0.0.3-SNAPSHOT"
+version := "0.0.3"
 
 scalaVersion := "2.11.5"
 
