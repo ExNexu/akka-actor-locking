@@ -6,3 +6,6 @@ jdk:
   - oraclejdk7
   - openjdk7
   - openjdk6
+
+script: "sbt ++$TRAVIS_SCALA_VERSION clean coverage test"
+after_success: "sbt ++$TRAVIS_SCALA_VERSION coveralls"
