@@ -38,7 +38,7 @@ import akka.actor.ActorSystem
 import us.bleibinha.akka.actor.locking._ // imports everything needed
 
 implicit val actorSystem = ActorSystem() // is an implicit argument to the LockActor
-lockActor = LockActor()
+val lockActor = LockActor()
 ```
 
 ## Features
@@ -64,7 +64,7 @@ result map println // prints "Hello"
   ```scala
   import scala.concurrent.duration._
 
-  lockActor = LockActor(30 seconds)
+  val lockActor = LockActor(30 seconds)
   ```
   * in the message (overwrites default timeout).
   ```scala
