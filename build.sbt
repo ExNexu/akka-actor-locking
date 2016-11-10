@@ -2,20 +2,20 @@ name := "Akka Actor Locking"
 
 organization := "us.bleibinha"
 
-version := "0.0.4-SNAPSHOT"
+version := "0.0.5-SNAPSHOT"
 
-scalaVersion := "2.11.5"
+scalaVersion := "2.12.0"
 
-crossScalaVersions := Seq("2.10.4", "2.11.5")
+crossScalaVersions := Seq("2.11.8", "2.12.0")
 
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
 
-val akkaVersion = "2.3.8"
+val akkaVersion = "2.4.12"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % akkaVersion,
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test"
+  "org.scalatest" %% "scalatest" % "3.0.0" % "test"
 )
 
 scalacOptions := Seq(
@@ -23,7 +23,7 @@ scalacOptions := Seq(
   "-feature",
   "-unchecked",
   "-deprecation",
-  "-target:jvm-1.6",
+  "-target:jvm-1.8",
   "-language:_",
   "-Ywarn-dead-code",
   "-Xlog-reflective-calls"
@@ -32,7 +32,7 @@ scalacOptions := Seq(
 
 // publishing:
 
-aetherPublishSettings
+overridePublishSettings
 
 credentials += Credentials(Path.userHome / ".ivy2" / ".us-bleibinha-snapshots-credentials")
 
