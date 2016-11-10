@@ -21,13 +21,13 @@ lockActor ! LockAwareMessage(lock2, action3) // runs in parallel to action1 & ac
 
 ## Get started
 
-Add this to your `build.sbt`:
+Add this to your `build.sbt` for Scala 2.12 & 2.11 (last version for Scala 2.10 is `0.0.3`):
 
 ```scala
 resolvers += "bleibinha.us/archiva releases" at "http://bleibinha.us/archiva/repository/releases"
 
 libraryDependencies ++= Seq(
-  "us.bleibinha" %% "akka-actor-locking" % "0.0.3"
+  "us.bleibinha" %% "akka-actor-locking" % "0.0.4"
 )
 ```
 
@@ -76,7 +76,7 @@ lockActor ! Unlock(lockObj)
 ```
 * Order of incoming messages to the lockActor is maintained.
 * The lock is released when the action code throws an exception.
-* Built with *Scala 2.11.5* & *Scala 2.10.4* and *akka 2.3.8*.
+* Built with *Scala 2.12.0* & *Scala 2.11.8* and *akka 2.4.12*.
 * [Tested](https://github.com/ExNexu/akka-actor-locking/blob/master/src/test/scala/akka/actor/locking/LockActorTest.scala).
 
 ## License
