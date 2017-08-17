@@ -73,7 +73,7 @@ trait LockActorInterface {
   private[LockActorInterface] object LockAwareRequestImpl {
     def requestFromRequestFunction(requestFunction: Function0[Future[Any]])(implicit ec: ExecutionContext, di: DummyImplicit) =
       (requester: ActorRef) ⇒ {
-        val result = Future(requestFunction.apply).flatMap(identity)
+        val result = requestFunction.apply
         result pipeTo requester
         result
       }
