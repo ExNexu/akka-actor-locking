@@ -10,7 +10,7 @@ crossScalaVersions := Seq("2.11.8", "2.12.0")
 
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
 
-val akkaVersion = "2.4.12"
+val akkaVersion = "2.4.19"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % akkaVersion,
