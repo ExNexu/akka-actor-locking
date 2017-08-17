@@ -43,14 +43,15 @@ sealed trait LockActor extends Actor {
 
   protected def lockAwareReceive: Receive = {
     case lockAware: LockAware ⇒
+      val requester = sender()
       val lockObj = lockAware.lockObj
       objsInProcess.contains(lockObj) match {
         case false ⇒
-          processLockAware(lockAware)
+          processLockAware(lockAware, requester)
         case true if isOverdue(lockObj) ⇒
-          processLockAware(lockAware)
+          processLockAware(lockAware, requester)
         case _ ⇒
-          addToWaiting(lockObj, lockAware, sender())
+          addToWaiting(lockObj, lockAware, requester)
       }
     case unlockMsg: Unlock ⇒
       val lockObj = unlockMsg.lockObj
@@ -66,7 +67,7 @@ sealed trait LockActor extends Actor {
       case Some(deadline) ⇒ deadline.isOverdue
     }
 
-  private def processLockAware(lockAware: LockAware) {
+  private def processLockAware(lockAware: LockAware, requester: ActorRef) {
     val lockObj = lockAware.lockObj
     val deadline: Option[Deadline] =
       lockAware.lockExpiration.orElse(defaultLockExpiration) map (_.fromNow)
@@ -78,7 +79,6 @@ sealed trait LockActor extends Actor {
         val requester = lockAwareWithRequester.originalRequester
         lockAwareWithRequester.request(requester)
       case lockAwareRequest: LockAwareRequest ⇒
-        val requester = sender()
         lockAwareRequest.request(requester)
     }
     resultFuture onComplete {
@@ -105,7 +105,7 @@ sealed trait LockActor extends Actor {
   }
 
   private def triggerWaitingMessages(lockObj: Any) {
-    waitingByObj.get(lockObj) map { waitingMessages ⇒
+    waitingByObj.get(lockObj) foreach { waitingMessages ⇒
       waitingMessages.length match {
         case x if x > 1 ⇒
           val (waitingMessage, moreWaitingMessages) = waitingMessages.dequeue
@@ -127,7 +127,7 @@ sealed trait LockActor extends Actor {
         LockAwareWithRequester(lockAwareRequest, originalRequester)
       case x ⇒ x
     }
-    val waitingMessagesForObj = waitingByObj.get(lockObj).getOrElse(Queue()).enqueue(modLockAware)
+    val waitingMessagesForObj = waitingByObj.getOrElse(lockObj, Queue()).enqueue(modLockAware)
     waitingByObj = waitingByObj + (lockObj → waitingMessagesForObj)
   }
 }
