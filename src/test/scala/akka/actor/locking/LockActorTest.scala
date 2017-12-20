@@ -8,7 +8,6 @@ import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
 import akka.testkit.TestProbe
-import LockActor._
 
 class LockActorTest extends BaseAkkaTest() {
   import system.dispatcher
@@ -71,32 +70,6 @@ class LockActorTest extends BaseAkkaTest() {
       Timespan.isIntersecting(lockObj2Timespans) should be(false)
     }
 
-    "release lock after expirationTime" in {
-      val blockingAction = () ⇒ Future { Thread.sleep(30000) }
-      lockActor ! LockAwareMessage(1, blockingAction, 100.millis)
-      val action = () ⇒ Future { self ! "OK" }
-      lockActor ! LockAwareMessage(1, action)
-      expectMsg("OK")
-    }
-
-    "release lock after default expiration Time" in {
-      val lockActorWithDefaultExp = LockActor(100.millis)(system)
-      val blockingAction = () ⇒ Future { Thread.sleep(30000) }
-      lockActorWithDefaultExp ! LockAwareMessage(1, blockingAction)
-      val action = () ⇒ Future { self ! "OK" }
-      lockActorWithDefaultExp ! LockAwareMessage(1, action)
-      expectMsg("OK")
-    }
-
-    "release lock after expiration Time (and not after default expiration Time)" in {
-      val lockActorWithDefaultExp = LockActor(30.seconds)(system)
-      val blockingAction = () ⇒ Future { Thread.sleep(30000) }
-      lockActorWithDefaultExp ! LockAwareMessage(1, blockingAction, 100.millis)
-      val action = () ⇒ Future { self ! "OK" }
-      lockActorWithDefaultExp ! LockAwareMessage(1, action)
-      expectMsg("OK")
-    }
-
     "release lock even when action fails" in {
       val failingAction = () ⇒ { throw new Exception("Oh noes!") }
       lockActor ! LockAwareMessage(1, failingAction)
@@ -119,21 +92,9 @@ class LockActorTest extends BaseAkkaTest() {
       result should be("OK")
     }
 
-    "respond to ask request (with expiration Time)" in {
-      val request = () ⇒ "OK"
-      val result = await(lockActor.ask(LockAwareRequest(1, request, 100.millis)))
-      result should be("OK")
-    }
-
     "respond to ask request (with Future)" in {
       val request = () ⇒ Future { "OK" }
       val result = await(lockActor.ask(LockAwareRequest(1, request)))
-      result should be("OK")
-    }
-
-    "respond to ask request (with Future and expiration Time)" in {
-      val request = () ⇒ Future { "OK" }
-      val result = await(lockActor.ask(LockAwareRequest(1, request, 100.millis)))
       result should be("OK")
     }
 

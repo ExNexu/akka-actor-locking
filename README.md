@@ -59,17 +59,6 @@ result map println // prints "Hello"
 ```
 * All action code is executed in a wrapping `Future` not blocking the lockActor from other requests.
 * The code is non-blocking.
-* Expiration on locks. Expires the lock
-  * in the lockActor (default timeout for all requests).
-  ```scala
-  import scala.concurrent.duration._
-
-  val lockActor = LockActor(30 seconds)
-  ```
-  * in the message (overwrites default timeout).
-  ```scala
-  lockActor ! LockAwareMessage(lockObj, action, 30 seconds)
-  ```
 * Manually release a lock.
 ```scala
 lockActor ! Unlock(lockObj)

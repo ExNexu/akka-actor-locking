@@ -1,8 +1,6 @@
 package us.bleibinha.akka.actor.locking
 
 import scala.collection.immutable.Queue
-import scala.concurrent.duration.Deadline
-import scala.concurrent.duration.FiniteDuration
 
 import akka.actor.Actor
 import akka.actor.ActorRef
@@ -12,11 +10,9 @@ import akka.actor.Props
 object LockActor {
 
   def apply()(implicit system: ActorSystem): ActorRef =
-    system.actorOf(Props(new DefaultLockActor(None)))
-  def apply(defaultLockExpiration: FiniteDuration)(implicit system: ActorSystem): ActorRef =
-    system.actorOf(Props(new DefaultLockActor(Some(defaultLockExpiration))))
+    system.actorOf(Props(new DefaultLockActor()))
 
-  private[LockActor] class DefaultLockActor(override protected val defaultLockExpiration: Option[FiniteDuration]) extends LockActor {
+  private[LockActor] class DefaultLockActor() extends LockActor {
     override def receive = lockAwareReceive
   }
 
@@ -25,7 +21,6 @@ object LockActor {
   private[LockActor] case class LockAwareWithRequester(lockAwareRequest: LockAwareRequest, originalRequester: ActorRef) extends LockAwareRequest {
     override def lockObj = lockAwareRequest.lockObj
     override def request = lockAwareRequest.request
-    override def lockExpiration = lockAwareRequest.lockExpiration
   }
 }
 
@@ -33,13 +28,9 @@ sealed trait LockActor extends Actor {
 
   import LockActor._
   import context.dispatcher
-  import context.system
 
   private var objsInProcess: Set[Any] = Set()
-  private var deadlineByObj: Map[Any, Deadline] = Map()
   private var waitingByObj: Map[Any, Queue[LockAware]] = Map()
-
-  protected def defaultLockExpiration: Option[FiniteDuration] = None
 
   protected def lockAwareReceive: Receive = {
     case lockAware: LockAware ⇒
@@ -47,8 +38,6 @@ sealed trait LockActor extends Actor {
       val lockObj = lockAware.lockObj
       objsInProcess.contains(lockObj) match {
         case false ⇒
-          processLockAware(lockAware, requester)
-        case true if isOverdue(lockObj) ⇒
           processLockAware(lockAware, requester)
         case _ ⇒
           addToWaiting(lockObj, lockAware, requester)
@@ -61,17 +50,9 @@ sealed trait LockActor extends Actor {
       triggerWaitingMessages(lockObj)
   }
 
-  private def isOverdue(lockObj: Any): Boolean =
-    deadlineByObj.get(lockObj) match {
-      case None           ⇒ false
-      case Some(deadline) ⇒ deadline.isOverdue
-    }
-
   private def processLockAware(lockAware: LockAware, requester: ActorRef) {
     val lockObj = lockAware.lockObj
-    val deadline: Option[Deadline] =
-      lockAware.lockExpiration.orElse(defaultLockExpiration) map (_.fromNow)
-    lock(lockObj, deadline)
+    lock(lockObj)
     val resultFuture = lockAware match {
       case lockAwareMessage: LockAwareMessage ⇒
         lockAwareMessage.action.apply
@@ -86,22 +67,12 @@ sealed trait LockActor extends Actor {
     }
   }
 
-  private def lock(lockObj: Any, deadline: Option[Deadline]) {
+  private def lock(lockObj: Any) {
     objsInProcess = objsInProcess + lockObj
-    deadline map { deadline ⇒
-      deadlineByObj = deadlineByObj + (lockObj → deadline)
-      scheduleTriggerWaiting(lockObj, deadline.timeLeft)
-    }
   }
-
-  private def scheduleTriggerWaiting(lockObj: Any, afterTime: FiniteDuration) =
-    system.scheduler.scheduleOnce(afterTime) {
-      self ! TriggerWaiting(lockObj)
-    }
 
   private def unlock(lockObj: Any) {
     objsInProcess = objsInProcess - lockObj
-    deadlineByObj = deadlineByObj - lockObj
   }
 
   private def triggerWaitingMessages(lockObj: Any) {
