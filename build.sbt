@@ -6,16 +6,16 @@ version := "0.0.6-SNAPSHOT"
 
 scalaVersion := "2.12.0"
 
-crossScalaVersions := Seq("2.11.8", "2.12.0")
+crossScalaVersions := Seq("2.11.12", "2.12.4")
 
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
 
-val akkaVersion = "2.4.19"
+val akkaVersion = "2.5.8"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % akkaVersion,
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
-  "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+  "org.scalatest" %% "scalatest" % "3.0.4" % "test"
 )
 
 scalacOptions := Seq(
