@@ -59,7 +59,7 @@ result map println // prints "Hello"
 ```
 * All action code is executed in a wrapping `Future` not blocking the lockActor from other requests.
 * The code is non-blocking.
-* Manually release a lock.
+* Manually release a lock. **Warning**: This will not cancel running processes using that lock.
 ```scala
 lockActor ! Unlock(lockObj)
 ```
