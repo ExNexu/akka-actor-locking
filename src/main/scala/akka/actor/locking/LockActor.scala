@@ -1,11 +1,9 @@
 package us.bleibinha.akka.actor.locking
 
 import scala.collection.immutable.Queue
+import scala.concurrent.Future
 
-import akka.actor.Actor
-import akka.actor.ActorRef
-import akka.actor.ActorSystem
-import akka.actor.Props
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 
 object LockActor {
 
@@ -13,57 +11,50 @@ object LockActor {
     system.actorOf(Props(new DefaultLockActor()))
 
   private[LockActor] class DefaultLockActor() extends LockActor {
+
     override def receive = lockAwareReceive
   }
 
-  private[LockActor] case class TriggerWaiting(lockObj: Any)
+  private[LockActor] case class LockAwareWithRequester(lockAwareRequest: LockAwareRequest, originalRequester: ActorRef)
+    extends LockAwareRequest with LockAwareMessage {
 
-  private[LockActor] case class LockAwareWithRequester(lockAwareRequest: LockAwareRequest, originalRequester: ActorRef) extends LockAwareRequest {
     override def lockObj = lockAwareRequest.lockObj
+
     override def request = lockAwareRequest.request
+
+    override def action: Function0[Future[Any]] = () ⇒ request(originalRequester)
   }
+
 }
 
 sealed trait LockActor extends Actor {
 
-  import LockActor._
   import context.dispatcher
+  import us.bleibinha.akka.actor.locking.LockActor._
 
   private var objsInProcess: Set[Any] = Set()
-  private var waitingByObj: Map[Any, Queue[LockAware]] = Map()
+  private var waitingByObj: Map[Any, Queue[LockAwareMessage]] = Map()
 
   protected def lockAwareReceive: Receive = {
     case lockAware: LockAware ⇒
       val requester = sender()
-      val lockObj = lockAware.lockObj
-      objsInProcess.contains(lockObj) match {
-        case false ⇒
-          processLockAware(lockAware, requester)
-        case _ ⇒
-          addToWaiting(lockObj, lockAware, requester)
-      }
-    case unlockMsg: Unlock ⇒
+      val lockAwareMessage = lockAwareToLockAwareMessage(lockAware, requester)
+      if (!objsInProcess.contains(lockAware.lockObj))
+        executeLockAware(lockAwareMessage)
+      else
+        addToWaiting(lockAwareMessage)
+    case unlockMsg: Unlock    ⇒
       val lockObj = unlockMsg.lockObj
       unlock(lockObj)
-      self ! TriggerWaiting(lockObj)
-    case TriggerWaiting(lockObj) ⇒
-      triggerWaitingMessages(lockObj)
+      processWaiting(lockObj)
   }
 
-  private def processLockAware(lockAware: LockAware, requester: ActorRef) {
-    val lockObj = lockAware.lockObj
+  private def executeLockAware(lockAwareMessage: LockAwareMessage) {
+    val lockObj = lockAwareMessage.lockObj
     lock(lockObj)
-    val resultFuture = lockAware match {
-      case lockAwareMessage: LockAwareMessage ⇒
-        lockAwareMessage.action.apply
-      case lockAwareWithRequester: LockAwareWithRequester ⇒
-        val requester = lockAwareWithRequester.originalRequester
-        lockAwareWithRequester.request(requester)
-      case lockAwareRequest: LockAwareRequest ⇒
-        lockAwareRequest.request(requester)
-    }
+    val resultFuture = lockAwareMessage.action.apply
     resultFuture onComplete {
-      case _ ⇒ self ! Unlock(lockObj)
+      _ ⇒ self ! Unlock(lockObj)
     }
   }
 
@@ -75,30 +66,31 @@ sealed trait LockActor extends Actor {
     objsInProcess = objsInProcess - lockObj
   }
 
-  private def triggerWaitingMessages(lockObj: Any) {
+  private def processWaiting(lockObj: Any): Unit =
     waitingByObj.get(lockObj) foreach { waitingMessages ⇒
       waitingMessages.length match {
         case x if x > 1 ⇒
           val (waitingMessage, moreWaitingMessages) = waitingMessages.dequeue
           waitingByObj = waitingByObj + (lockObj → moreWaitingMessages)
-          self ! waitingMessage
-        case 1 ⇒
+          executeLockAware(waitingMessage)
+        case 1          ⇒
           val (waitingMessage, _) = waitingMessages.dequeue
           waitingByObj = waitingByObj - lockObj
-          self ! waitingMessage
-        case 0 ⇒
+          executeLockAware(waitingMessage)
+        case 0          ⇒
           waitingByObj = waitingByObj - lockObj
       }
     }
-  }
 
-  private def addToWaiting(lockObj: Any, lockAware: LockAware, originalRequester: ActorRef) {
-    val modLockAware = lockAware match {
-      case lockAwareRequest: LockAwareRequest ⇒
-        LockAwareWithRequester(lockAwareRequest, originalRequester)
-      case x ⇒ x
-    }
-    val waitingMessagesForObj = waitingByObj.getOrElse(lockObj, Queue()).enqueue(modLockAware)
+  private def addToWaiting(lockAwareMessage: LockAwareMessage) {
+    val lockObj = lockAwareMessage.lockObj
+    val waitingMessagesForObj = waitingByObj.getOrElse(lockObj, Queue()).enqueue(lockAwareMessage)
     waitingByObj = waitingByObj + (lockObj → waitingMessagesForObj)
   }
+
+  private def lockAwareToLockAwareMessage(lockAware: LockAware, originalRequester: ActorRef): LockAwareMessage =
+    lockAware match {
+      case lockAwareRequest: LockAwareRequest ⇒ LockAwareWithRequester(lockAwareRequest, originalRequester)
+      case lockAwareMessage: LockAwareMessage ⇒ lockAwareMessage
+    }
 }
