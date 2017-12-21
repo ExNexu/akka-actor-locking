@@ -27,7 +27,7 @@ Add this to your `build.sbt` for Scala 2.12 & 2.11 (last version for Scala 2.10 
 resolvers += "bleibinha.us/archiva releases" at "http://bleibinha.us/archiva/repository/releases"
 
 libraryDependencies ++= Seq(
-  "us.bleibinha" %% "akka-actor-locking" % "0.0.6"
+  "us.bleibinha" %% "akka-actor-locking" % "0.0.7"
 )
 ```
 

@@ -2,7 +2,7 @@ name := "Akka Actor Locking"
 
 organization := "us.bleibinha"
 
-version := "0.0.7-SNAPSHOT"
+version := "0.0.7"
 
 scalaVersion := "2.12.0"
 
@@ -32,7 +32,11 @@ scalacOptions := Seq(
 
 // publishing:
 
+import aether.AetherKeys._
+
 overridePublishSettings
+
+aetherOldVersionMethod := true
 
 credentials += Credentials(Path.userHome / ".ivy2" / ".us-bleibinha-snapshots-credentials")
 
