@@ -118,6 +118,33 @@ class LockActorTest extends BaseAkkaTest() {
       expectMsg("OK")
     }
 
+    // https://github.com/ExNexu/akka-actor-locking/issues/1#issuecomment-353286769
+    "maintain order of messages" in {
+      val probe1 = TestProbe()
+      val probe2 = TestProbe()
+      val ddosProbs: Array[TestProbe] = Array.fill[TestProbe](20)(TestProbe())
+
+      val request1 = () ⇒ Future { Thread.sleep(1000); "OK1" }
+      val request2 = () ⇒ Future { Thread.sleep(1000); "OK2" }
+
+      probe1.send(lockActor, LockAwareRequest(1, request1))
+      probe2.send(lockActor, LockAwareRequest(1, request2))
+      Thread.sleep(700)
+
+      ddosProbs.zipWithIndex.foreach {
+        case (prob, index) ⇒
+          Thread.sleep(1)
+          val request = () ⇒ Future { Thread.sleep(1); "Extra:OK" + index}
+          prob.send(lockActor, LockAwareRequest(1, request))
+      }
+
+      probe1.expectMsg("OK1")
+      probe2.expectMsg("OK2")
+      ddosProbs.zipWithIndex.foreach {
+        case (prob, index) ⇒ prob.expectMsg("Extra:OK" + index)
+      }
+    }
+
   }
 
   var lockActor: ActorRef = _
