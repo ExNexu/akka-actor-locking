@@ -14,8 +14,8 @@ val action2 = () ⇒ { someOtherCode() } // the lock is released when your code 
 val lock2 = 1337
 val action3 = () ⇒ { someReallyOtherCode() }
 
-lockActor ! LockAwareMessage(lock1, action1) // order is guaranteed
-lockActor ! LockAwareMessage(lock1, action2) // runs right after action1 :-)
+lockActor ! LockAwareMessage(lock1, action1) // messages run in the order they are received
+lockActor ! LockAwareMessage(lock1, action2) // does not run in parallel with action1
 lockActor ! LockAwareMessage(lock2, action3) // runs in parallel to action1 & action2
 ```
 
